@@ -13,6 +13,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+app.use("/api/adopters", require("./routes/adopterRoutes"));
+
 app.use("/api/animals", animalRoutes);
 connectDB();
 
