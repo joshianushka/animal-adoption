@@ -1,17 +1,7 @@
-const express = require("express");
+const router = require("express").Router();
+const c = require("../controllers/animalController");
 
-const {
-  createAnimal,
-  getAnimals,
-  getAnimal,
-  deleteAnimal,
-} = require("../controllers/animalController");
-
-const router = express.Router();
-
-router.post("/", createAnimal);
-router.get("/", getAnimals);
-router.get("/:id", getAnimal);
-router.delete("/:id", deleteAnimal);
+router.route("/").get(c.getAnimals).post(c.createAnimal);
+router.route("/:id").get(c.getAnimal).put(c.updateAnimal).delete(c.deleteAnimal);
 
 module.exports = router;
