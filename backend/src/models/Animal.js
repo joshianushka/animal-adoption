@@ -21,6 +21,10 @@ const animalSchema = new mongoose.Schema(
     healthNotes: { type: String },
     adoptionFee: { type: Number, default: 0, min: 0 },
     description: { type: String, maxlength: 2000 },
+    needsYard: { type: Boolean, default: false },
+    specialNeeds: { type: Boolean, default: false },
+    experienceRequired: { type: String, enum: ["first_time", "some", "experienced"], default: "first_time" },
+    maxHoursAlone: { type: Number, default: 6 },
     photos: [{ type: String }],
     status: {
       type: String,
