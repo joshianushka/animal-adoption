@@ -1,8 +1,5 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
-
-const API = "http://localhost:5000/api/adopters/me";
-const headers = { "x-user-id": "65f000000000000000000001" }; // dev only, replace with JWT later
+import api from "../api";
 
 const empty = {
   housingType: "apartment",

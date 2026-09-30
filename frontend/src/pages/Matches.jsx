@@ -1,15 +1,27 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
-
-const API = "http://localhost:5000/api/matches/me";
-const headers = { "x-user-id": "65f000000000000000000001" }; // dev only, same user as the questionnaire
+import { Link } from "react-router-dom";
+import api from "../api";
 
 const label = (score) =>
   score >= 80 ? "Great match" : score >= 60 ? "Good match" : "Worth a look";
 
 function MatchCard({ match }) {
   const { animal, score, blocked, block_reasons, why, concerns } = match;
+  const [reqStatus, setReqStatus] = useState(match.requestStatus);
+  const [note, setNote] = useState("");
+  const [message, setMessage] = useState("");
+
   if (!animal) return null;
+
+  const sendRequest = async () => {
+    try {
+      await api.post("/requests", { animalId: match.animalId, message });
+      setReqStatus("pending");
+      setNote("");
+    } catch (err) {
+      setNote(err.response?.data?.message || "Could not send request");
+    }
+  };
 
   return (
     <div style={{
@@ -48,6 +60,23 @@ function MatchCard({ match }) {
           <ul style={{ margin: "4px 0" }}>{concerns.map((c) => <li key={c}>{c}</li>)}</ul>
         </div>
       )}
+
+      <div style={{ marginTop: 12 }}>
+        {reqStatus ? (
+          <strong>Adoption request: {reqStatus}</strong>
+        ) : (
+          <>
+            <input
+              placeholder="Optional message to the shelter"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              style={{ width: "70%", marginRight: 8 }}
+            />
+            <button onClick={sendRequest}>Request adoption</button>
+          </>
+        )}
+        {note && <p style={{ color: "crimson" }}>{note}</p>}
+      </div>
     </div>
   );
 }
@@ -58,8 +87,11 @@ export default function Matches() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    axios.get(API, { headers })
-      .then((res) => { setMatches(res.data); setState("done"); })
+    api.get("/matches/me")
+      .then((res) => {
+        setMatches(res.data);
+        setState("done");
+      })
       .catch((err) => {
         setError(err.response?.data?.message || "Could not load matches");
         setState("error");
@@ -67,7 +99,15 @@ export default function Matches() {
   }, []);
 
   if (state === "loading") return <p style={{ textAlign: "center" }}>Finding your matches...</p>;
-  if (state === "error") return <p style={{ textAlign: "center" }}>{error}</p>;
+
+  if (state === "error") {
+    return (
+      <p style={{ textAlign: "center" }}>
+        {error}{" "}
+        {error.includes("questionnaire") && <Link to="/adopter/questionnaire">Fill it in here</Link>}
+      </p>
+    );
+  }
 
   return (
     <div style={{ maxWidth: 640, margin: "2rem auto" }}>
