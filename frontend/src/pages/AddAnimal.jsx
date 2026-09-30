@@ -1,8 +1,6 @@
 import { useState } from "react";
-import axios from "axios";
-
-const API = "http://localhost:5000/api/animals";
-const SHELTER_ID = "65f000000000000000000002"; // dev only, replace with the logged-in shelter later
+import { useNavigate } from "react-router-dom";
+import api from "../api";
 
 const empty = {
   name: "", species: "dog", breed: "", isMixedBreed: false,
@@ -14,11 +12,9 @@ const empty = {
   adoptionFee: 0, description: "", photos: "",
 };
 
-const row = { display: "block", marginBottom: 12 };
-
 function Field({ label, children }) {
   return (
-    <label style={row}>
+    <label style={{ display: "block", marginBottom: 12 }}>
       <div>{label}</div>
       {children}
     </label>
@@ -34,27 +30,39 @@ function Check({ label, checked, onChange }) {
 }
 
 export default function AddAnimal() {
+  const nav = useNavigate();
   const [form, setForm] = useState(empty);
   const [status, setStatus] = useState("");
+  const [prediction, setPrediction] = useState(null);
+
   const set = (key) => (value) => setForm((f) => ({ ...f, [key]: value }));
   const text = (key) => ({ value: form[key], onChange: (e) => set(key)(e.target.value) });
   const num = (key) => ({ value: form[key], onChange: (e) => set(key)(Number(e.target.value)) });
-
   const opts = (list) => list.map(([v, t]) => <option key={v} value={v}>{t}</option>);
+
+  // one place that turns the form into what the API expects
+  const buildPayload = () => ({
+    ...form,
+    temperament: form.temperament.split(",").map((s) => s.trim()).filter(Boolean),
+    photos: form.photos.split(",").map((s) => s.trim()).filter(Boolean),
+  });
+
+  const predict = async () => {
+    setPrediction(null);
+    try {
+      const { data } = await api.post("/animals/predict-speed", buildPayload());
+      setPrediction(data);
+    } catch (err) {
+      setPrediction({ error: err.response?.data?.message || "Prediction failed" });
+    }
+  };
 
   const submit = async (e) => {
     e.preventDefault();
     setStatus("Saving...");
-    const payload = {
-      ...form,
-      shelter: SHELTER_ID,
-      temperament: form.temperament.split(",").map((s) => s.trim()).filter(Boolean),
-      photos: form.photos.split(",").map((s) => s.trim()).filter(Boolean),
-    };
     try {
-      await axios.post(API, payload);
-      setStatus(`${form.name} added!`);
-      setForm(empty);
+      await api.post("/animals", buildPayload());
+      nav("/shelter/dashboard");
     } catch (err) {
       setStatus(err.response?.data?.message || "Something went wrong");
     }
@@ -78,12 +86,12 @@ export default function AddAnimal() {
       <Field label="Size">
         <select {...text("size")}>{opts([["small", "Small"], ["medium", "Medium"], ["large", "Large"]])}</select>
       </Field>
-      <Field label="Color"><input {...text("color")} /></Field>
+      <Field label="Color (e.g. black, brown, golden, yellow, cream, gray, white)"><input {...text("color")} /></Field>
       <Field label="Coat length">
         <select {...text("coatLength")}>{opts([["short", "Short"], ["medium", "Medium"], ["long", "Long"]])}</select>
       </Field>
 
-      <h3>Personality & needs</h3>
+      <h3>Personality and needs</h3>
       <Field label="Energy level">
         <select {...text("energyLevel")}>{opts([["low", "Low"], ["medium", "Medium"], ["high", "High"]])}</select>
       </Field>
@@ -98,7 +106,9 @@ export default function AddAnimal() {
           {opts([["first_time", "Any owner"], ["some", "Some experience"], ["experienced", "Experienced only"]])}
         </select>
       </Field>
-      <Field label="Max hours alone per day"><input type="number" min="0" max="24" {...num("maxHoursAlone")} /></Field>
+      <Field label="Max hours alone per day">
+        <input type="number" min="0" max="24" {...num("maxHoursAlone")} />
+      </Field>
 
       <h3>Health</h3>
       <Check label="Vaccinated" checked={form.vaccinated} onChange={set("vaccinated")} />
@@ -113,11 +123,25 @@ export default function AddAnimal() {
 
       <h3>Listing</h3>
       <Field label="Adoption fee"><input type="number" min="0" {...num("adoptionFee")} /></Field>
-      <Field label="Description"><textarea rows={4} maxLength={2000} {...text("description")} /></Field>
-      <Field label="Photo URLs (comma separated)"><input {...text("photos")} /></Field>
+      <Field label="Description">
+        <textarea rows={4} maxLength={2000} placeholder="Personality, daily routine, what they love"
+          style={{ width: "100%" }} {...text("description")} />
+      </Field>
+      <Field label="Photo URLs (comma separated)"><input style={{ width: "100%" }} {...text("photos")} /></Field>
 
+      <button type="button" onClick={predict}>Predict adoption speed</button>{" "}
       <button type="submit">Add animal</button>
-      <p>{status}</p>
+      <p style={{ color: "crimson" }}>{status}</p>
+
+      {prediction?.error && <p style={{ color: "crimson" }}>{prediction.error}</p>}
+      {prediction && !prediction.error && (
+        <div style={{ background: "#f5f9ff", padding: 10, borderRadius: 6 }}>
+          Predicted: <strong>{prediction.label}</strong>
+          {prediction.tips.length > 0 && (
+            <ul style={{ margin: "6px 0" }}>{prediction.tips.map((t) => <li key={t}>{t}</li>)}</ul>
+          )}
+        </div>
+      )}
     </form>
   );
 }
