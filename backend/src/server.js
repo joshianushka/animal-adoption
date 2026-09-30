@@ -8,6 +8,9 @@ const animalRoutes = require("./routes/animalRoutes");
 const express = require("express");
 const cors = require("cors");
 
+app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/requests", require("./routes/requestRoutes"));
+
 const app = express();
 
 app.use(cors());
