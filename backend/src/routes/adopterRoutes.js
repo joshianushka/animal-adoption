@@ -1,6 +1,9 @@
 const router = require("express").Router();
-const c = require("../controllers/adopterController");
+const { getMyMatches } = require("../controllers/matchController");
+const { protect, requireRole } = require("../middleware/auth");
 
-router.route("/me").get(c.getMyProfile).put(c.saveMyProfile);
+router.use(protect, requireRole("adopter"));
+
+router.get("/me", getMyMatches);
 
 module.exports = router;

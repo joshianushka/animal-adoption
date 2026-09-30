@@ -1,40 +1,33 @@
 const axios = require("axios");
 const Adopter = require("../models/Adopter");
 const Animal = require("../models/Animal");
-const mongoose = require("mongoose");   
+const AdoptionRequest = require("../models/AdoptionRequest");
 
 const ML_URL = process.env.ML_SERVICE_URL || "http://localhost:8000";
-const getUserId = (req) => req.user?.id || req.header("x-user-id");
 
 exports.getMyMatches = async (req, res) => {
   try {
-    console.log("DB name:        ", mongoose.connection.name);
-    console.log("userId received:", getUserId(req));
-    console.log("adopters in DB: ", await Adopter.countDocuments());
-    const adopter = await Adopter.findOne({ user: getUserId(req) }).lean();
-    if (!adopter) {
-      return res.status(404).json({ message: "Complete the questionnaire first" });
-    }
+    const adopter = await Adopter.findOne({ user: req.user.id }).lean();
+    if (!adopter) return res.status(404).json({ message: "Complete the questionnaire first" });
 
     const animals = await Animal.find({ status: "available" }).limit(200).lean();
     if (animals.length === 0) return res.json([]);
 
-    // FastAPI needs plain JSON, so stringify the ObjectIds
-    const payload = {
-      adopter,
-      animals: animals.map((a) => ({ ...a, _id: String(a._id) })),
-    };
+    const { data: ranked } = await axios.post(
+      `${ML_URL}/match/rank`,
+      { adopter, animals: animals.map((a) => ({ ...a, _id: String(a._id) })) },
+      { timeout: 10000 }
+    );
 
-    const { data: ranked } = await axios.post(`${ML_URL}/match/rank`, payload, { timeout: 10000 });
-
-    // Join the scores back onto the full animal documents
+    const mine = await AdoptionRequest.find({ adopter: req.user.id }).select("animal status").lean();
+    const requested = Object.fromEntries(mine.map((r) => [String(r.animal), r.status]));
     const byId = Object.fromEntries(animals.map((a) => [String(a._id), a]));
-    const results = ranked.map((r) => ({
+
+    res.json(ranked.map((r) => ({
       ...r,
       animal: byId[r.animalId],
-    }));
-
-    res.json(results);
+      requestStatus: requested[r.animalId] || null,
+    })));
   } catch (err) {
     if (err.code === "ECONNREFUSED" || err.code === "ECONNABORTED") {
       return res.status(503).json({ message: "Matching service is unavailable" });
